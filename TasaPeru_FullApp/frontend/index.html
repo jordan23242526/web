@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TasaPerú – Comparador y Simuladores</title>
+  <meta name="description" content="TasaPerú: comparador de tasas bancarias (conexión a /api/retasas), simuladores y capacitación." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='100%25' height='100%25' fill='%2300417a'/%3E%3Ctext x='50%25' y='55%25' font-size='32' fill='%23fff' text-anchor='middle' font-family='Arial' font-weight='700'%3ETP%3C/text%3E%3C/svg%3E">
+  <style>
+    :root{--bg:#071021;--panel:#07151f;--muted:#9aa6b2;--text:#dbe7ee;--up:#16c784;--down:#ff6b6b;--glass:rgba(255,255,255,.03)}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,var(--bg),#04101a);color:var(--text)}
+    header{background:#041224;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.04)}
+    .brand{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:12px}
+    .logo{width:44px;height:44px;border-radius:8px;background:linear-gradient(135deg,var(--up),#38bdf8);display:grid;place-items:center;color:#041018;font-weight:800}
+    h1{font-size:18px;margin:0}
+    .sub{color:var(--muted);font-size:13px}
+    .ticker-wrap{max-width:1200px;margin:14px auto;padding:8px 12px;background:linear-gradient(90deg,#031420,#071724);border:1px solid rgba(255,255,255,.03);overflow:hidden;border-radius:8px}
+    .ticker{display:inline-flex;gap:18px;white-space:nowrap;will-change:transform;transform:translateX(0);}
+    .ticker-item{display:inline-flex;align-items:center;gap:12px;padding:8px 14px;border-radius:6px;background:var(--glass);border:1px solid rgba(255,255,255,.02)}
+    .ti-ent{font-weight:700}
+    .ti-prod{color:var(--muted);font-size:13px}
+    .ti-rate{font-weight:800}
+    main{max-width:1200px;margin:18px auto;padding:0 12px;display:grid;grid-template-columns:2fr 1fr;gap:18px}
+    .panel{background:linear-gradient(180deg,rgba(255,255,255,.02),transparent);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,.04)}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,.03);text-align:left}
+    th{color:var(--muted);font-size:13px}
+    .controls{display:flex;gap:8px;align-items:center}
+    select,input{background:#041724;border:1px solid rgba(255,255,255,.03);color:var(--text);padding:8px;border-radius:8px}
+    .btn{padding:9px 12px;border-radius:8px;border:none;cursor:pointer;font-weight:700}
+    .btn.primary{background:linear-gradient(135deg,var(--up),#38bdf8);color:#041018}
+    .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
+    .kpi{background:rgba(255,255,255,.01);padding:10px;border-radius:8px}
+    .small{font-size:12px;color:var(--muted)}
+    .chat{display:flex;flex-direction:column;height:420px}
+    .msgs{flex:1;overflow:auto;padding:8px}
+    .composer{display:flex;gap:8px;padding-top:8px}
+    .badge{padding:6px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.03);font-size:12px}
+    @media(max-width:900px){main{grid-template-columns:1fr;padding:12px} .ticker-wrap,.brand{padding-left:12px;padding-right:12px}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">TP</div>
+      <div>
+        <h1>TasaPerú</h1>
+        <div class="sub">Comparador de tasas bancarias · Simuladores · Capacitación · Asistente</div>
+      </div>
+    </div>
+  </header>
+  <div class="ticker-wrap" aria-hidden="false">
+    <div id="ticker" class="ticker" aria-live="polite"></div>
+  </div>
+  <main>
+    <section class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <div>
+          <div class="small">Comparador</div>
+          <h2 style="margin:6px 0">Tasas por banco y producto</h2>
+        </div>
+        <div class="controls">
+          <select id="filter-product">
+            <option value="">Todos los productos</option>
+            <option value="Crédito de consumo">Crédito de consumo</option>
+            <option value="Crédito hipotecario">Crédito hipotecario</option>
+            <option value="Crédito vehicular">Crédito vehicular</option>
+            <option value="Cuenta de ahorro">Cuenta de ahorro</option>
+            <option value="Depósito a plazo fijo">Depósito a plazo fijo</option>
+          </select>
+          <input id="filter-ent" placeholder="Buscar banco (ej: BCP)" />
+          <button class="btn primary" id="refresh">Actualizar</button>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <table aria-describedby="Tabla con tasas por banco">
+          <thead>
+            <tr><th>Banco</th><th>Producto</th><th>Tasa</th><th>Tipo</th><th>Cuota / Proyección</th></tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </section>
+    <aside class="panel">
+      <div>
+        <div class="small">Resumen</div>
+        <h3 style="margin:6px 0">KPIs</h3>
+        <div class="kpis">
+          <div class="kpi"><div class="small">Mejor tasa</div><div id="kpi-best">—</div></div>
+          <div class="kpi"><div class="small">Promedio</div><div id="kpi-avg">—</div></div>
+          <div class="kpi"><div class="small">Resultados</div><div id="kpi-count">—</div></div>
+          <div class="kpi"><div class="small">Actualizado</div><div id="kpi-upd">—</div></div>
+        </div>
+      </div>
+      <hr style="margin:12px 0;border:none;border-top:1px solid rgba(255,255,255,.03)" />
+      <div>
+        <div class="small">Simuladores rápidos</div>
+        <label class="small">Préstamo: monto</label>
+        <input id="sim-monto" value="10000" />
+        <label class="small">TEA (%)</label>
+        <input id="sim-tea" value="25" />
+        <label class="small">Plazo (meses)</label>
+        <input id="sim-meses" value="24" />
+        <button class="btn primary" id="sim-calc" style="margin-top:8px">Calcular cuota</button>
+        <div style="margin-top:8px" id="sim-result">—</div>
+      </div>
+      <hr style="margin:12px 0;border:none;border-top:1px solid rgba(255,255,255,.03)" />
+      <div>
+        <div class="small">Asistente (demo)</div>
+        <div class="chat">
+          <div class="msgs" id="msgs"></div>
+          <div class="composer">
+            <input id="prompt" placeholder="¿Qué es la CETEA?" />
+            <button class="btn primary" id="ask">Enviar</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </main>
+  <script>
+    const tickerEl = document.getElementById('ticker');
+    const tableBody = document.getElementById('table-body');
+    const kBest = document.getElementById('kpi-best');
+    const kAvg = document.getElementById('kpi-avg');
+    const kCount = document.getElementById('kpi-count');
+    const kUpd = document.getElementById('kpi-upd');
+    const filterProduct = document.getElementById('filter-product');
+    const filterEnt = document.getElementById('filter-ent');
+    const refreshBtn = document.getElementById('refresh');
+    const simCalc = document.getElementById('sim-calc');
+    const simResult = document.getElementById('sim-result');
+    const msgs = document.getElementById('msgs');
+    const prompt = document.getElementById('prompt');
+    const ask = document.getElementById('ask');
+    const fmt = new Intl.NumberFormat('es-PE',{style:'currency',currency:'PEN'});
+    const pct = n => `${(+n).toFixed(2)}%`;
+    const now = () => new Date().toLocaleString('es-PE');
+    let tickerData = [];
+    function renderTicker(data){
+      tickerData = data.slice(0,20);
+      tickerEl.innerHTML = '';
+      tickerData.forEach(d=>{
+        const item = document.createElement('div');
+        item.className = 'ticker-item';
+        const deltaClass = d.delta && d.delta>0 ? 'up' : (d.delta && d.delta<0 ? 'down' : '');
+        item.innerHTML = `<div style="min-width:180px"><div class="ti-ent">${d.entidad}</div><div class="ti-prod">${d.producto}</div></div><div class="ti-rate ${deltaClass}">${pct(d.tasa)}</div>`;
+        tickerEl.appendChild(item);
+      });
+      const clone = tickerEl.innerHTML;
+      tickerEl.innerHTML += clone;
+      startTickerScroll();
+    }
+    let pos = 0;let rafId=null;
+    function startTickerScroll(){
+      cancelAnimationFrame(rafId);
+      const speed = 0.6;
+      function step(){
+        pos += speed;
+        if(pos >= tickerEl.scrollWidth/2) pos = 0;
+        tickerEl.style.transform = `translateX(${-pos}px)`;
+        rafId = requestAnimationFrame(step);
+      }
+      step();
+    }
+    function renderTable(data){
+      tableBody.innerHTML = '';
+      data.forEach(d=>{
+        const tr = document.createElement('tr');
+        const isDeposit = /aplazo|ahorro|depósito/i.test(d.producto);
+        const col4 = isDeposit ? `TREA ${pct(d.tasa)}` : fmt.format(cuotaFromTEA(d.tasa, Number(document.getElementById('sim-monto').value||0), Number(document.getElementById('sim-meses').value||1)));
+        tr.innerHTML = `<td>${d.entidad}</td><td>${d.producto}</td><td>${pct(d.tasa)}</td><td>${d.tipo||'—'}</td><td>${col4}</td>`;
+        tableBody.appendChild(tr);
+      });
+    }
+    function cuotaFromTEA(TEA, M, N){
+      if(M<=0 || N<=0) return 0;
+      const i = Math.pow(1+TEA/100,1/12)-1;
+      if(i===0) return M/N;
+      return M*(i*Math.pow(1+i,N))/(Math.pow(1+i,N)-1);
+    }
+    async function getData(){
+      try{
+        const res = await fetch('/api/retasas');
+        if(!res.ok) throw new Error('No se pudo obtener datos del servidor');
+        const data = await res.json();
+        return data;
+      }catch(e){
+        console.warn('Fallo al obtener datos reales, se usan datos demo',e);
+        return [
+          {entidad:'BCP',producto:'Crédito de consumo',tipo:'Activa',tasa:28.5,delta:0.2},
+          {entidad:'BBVA',producto:'Crédito hipotecario',tipo:'Activa',tasa:9.7,delta:-0.1},
+          {entidad:'Interbank',producto:'Cuenta de ahorro',tipo:'Pasiva',tasa:1.2,delta:0.0},
+          {entidad:'Scotiabank',producto:'Crédito vehicular',tipo:'Activa',tasa:14.3,delta:0.1},
+          {entidad:'Caja Arequipa',producto:'Depósito a plazo fijo',tipo:'Pasiva',tasa:4.5,delta:0.05}
+        ];
+      }
+    }
+    async function loadAll(){
+      const raw = await getData();
+      const prodFilter = filterProduct.value;
+      const entFilter = filterEnt.value.trim().toLowerCase();
+      let data = raw.filter(d=>(!prodFilter||d.producto.includes(prodFilter)) && (!entFilter||d.entidad.toLowerCase().includes(entFilter)));
+      if(data.length){
+        const best = data.reduce((a,b)=>a.tasa<b.tasa?a:b);
+        const avg = data.reduce((s,x)=>s+x.tasa,0)/data.length;
+        kBest.textContent = pct(best.tasa) + ' — ' + best.entidad;
+        kAvg.textContent = pct(avg);
+      } else { kBest.textContent='—'; kAvg.textContent='—'; }
+      kCount.textContent = data.length; kUpd.textContent = now();
+      renderTicker(data);
+      renderTable(data);
+    }
+    refreshBtn.addEventListener('click',loadAll);
+    filterProduct.addEventListener('change',loadAll);
+    filterEnt.addEventListener('input',debounce(loadAll,400));
+    simCalc.addEventListener('click',()=>{
+      const M=Number(document.getElementById('sim-monto').value||0);
+      const TEA=Number(document.getElementById('sim-tea').value||0);
+      const N=Number(document.getElementById('sim-meses').value||1);
+      const cuota = cuotaFromTEA(TEA,M,N);
+      simResult.textContent = `Cuota aprox.: ${fmt.format(cuota)} / mes (TEA ${TEA}%)`;
+    });
+    const seedAnswers = [
+      {k:/cetea|tcea/i, r:'La TCEA/CETEA es el Costo Efectivo Total Anual. Incluye intereses y cargos obligatorios, es la medida más completa para comparar créditos.'},
+      {k:/tea/i, r:'La TEA es la Tasa Efectiva Anual. Para créditos y depósitos indica la tasa efectiva en un año (no incluye algunos cargos).'},
+      {k:/trea/i, r:'La TREA es la Tasa de Rendimiento Efectiva Anual, utilizada para depósitos/ahorros y refleja la rentabilidad anual.'}
+    ];
+    ask.addEventListener('click',async()=>{const q=prompt.value.trim();if(!q) return; addMsg('Tú',q); addMsg('Asistente','Buscando respuesta...'); const ans = seedAnswers.find(s=>s.k.test(q)); const reply = ans?ans.r:'Usa el comparador y los simuladores. Para respuestas avanzadas conecta la app a una API de IA.'; replaceLastAssistant(reply); prompt.value='';});
+    function addMsg(who,text){ const d=document.createElement('div'); d.className='msg'; d.innerHTML=`<div class="small" style="color:var(--muted)">${who}</div><div class="bubble" style="margin-top:6px">${text}</div>`; msgs.appendChild(d); msgs.scrollTop = msgs.scrollHeight; }
+    function replaceLastAssistant(text){ const bubbles = msgs.querySelectorAll('.bubble'); if(bubbles.length) bubbles[bubbles.length-1].textContent = text; }
+    function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); } }
+    loadAll();
+  </script>
+</body>
+</html>
